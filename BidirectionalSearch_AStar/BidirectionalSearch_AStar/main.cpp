@@ -36,8 +36,8 @@ bool isPathBeenDrawed = true;
 //gray queue for BFS algorithm
 vector<Point2D*> gray_start;
 vector<Point2D*> gray_target;
-double ground[MSIZE][MSIZE];
-double eyex = 0, eyey = 90, eyez = 200;
+Point2D* startPoint, *targetPoint;
+
 
 void setupMaze()
 {
@@ -68,19 +68,10 @@ void setupMaze()
 
 }
 
-void init()
+void initStartAndTargetPoints()
 {
-	int i, j;
-	srand(time(0));
-	Point2D* startPoint, *targetPoint;
+	
 	int targetCordinate_row, targetCordinate_col;
-
-	//clean up the maze
-	for (i = 0; i < MSIZE; i++)
-		for (j = 0; j < MSIZE; j++)
-			maze[i][j] = SPACE;
-
-	setupMaze();
 
 	//set the start point in the maze
 	maze[MSIZE / 2][MSIZE / 2] = START;
@@ -93,6 +84,63 @@ void init()
 	maze[targetCordinate_row][targetCordinate_col] = TARGET;
 	targetPoint = new Point2D(targetCordinate_col, targetCordinate_row);
 	gray_target.push_back(targetPoint);
+}
+
+//clean the maze from anything but start, target and walls
+void cleanUpMaze()
+{
+	int i, j;
+
+	
+	gray_start.clear();
+	gray_target.clear();
+
+	gray_start.push_back(startPoint);
+	gray_target.push_back(targetPoint);
+
+	bfs_start_started = false;
+	bfs_target_started = false;
+	dfs_started = false;
+	isPathBeenDrawed = true;
+
+	//clean up the maze
+	for (i = 0; i < MSIZE; i++)
+		for (j = 0; j < MSIZE; j++)
+		{
+			if (maze[i][j] == VISITED_FROM_START || maze[i][j] == VISITED_FROM_TARGET || maze[i][j] == GRAY || maze[i][j] == PATH)
+				maze[i][j] = SPACE;
+		}
+}
+
+//create a new maze pattern (start point, and target point will remain their positions)
+void scrumbleMaze()
+{
+	int i, j;
+
+	//clean up the maze
+	for (i = 0; i < MSIZE; i++)
+		for (j = 0; j < MSIZE; j++)
+			maze[i][j] = SPACE;
+
+	gray_start.clear();
+	gray_target.clear();
+
+	setupMaze();
+}
+
+void init()
+{
+	bfs_start_started = false;
+	bfs_target_started = false;
+	dfs_started = false;
+	isPathBeenDrawed = true;
+
+	srand(time(0));
+	
+
+	scrumbleMaze();
+	initStartAndTargetPoints();
+	
 
 	glClearColor(0.7, 0.7, 0.7, 0);
 
@@ -101,15 +149,12 @@ void init()
 
 void showPathFromStart(Point2D* pt)
 {
-	/*while (maze[pt->getY()][pt->getX()] != START)
-	{
-		maze[pt->getY()][pt->getX()] = PATH;
-		pt = parent_forStartPath[pt->getY()][pt->getX()];
-	}*/
+
 	Point2D* pt1 = pt;
 	while (maze[pt1->getY()][pt1->getX()] != START)
 	{
-		maze[pt1->getY()][pt1->getX()] = PATH;
+		if(maze[pt1->getY()][pt1->getX()] != TARGET)
+			maze[pt1->getY()][pt1->getX()] = PATH;
 		pt1 = parent_forStartPath[pt1->getY()][pt1->getX()];
 		if (pt1 == NULL)
 			break;
@@ -149,92 +194,81 @@ void showBiderectionalPath(/*Point2D* pt*/)
 	showPathFromTarget(pt2);
 }
 
+void saveIntersectionPoint(int row, int col)
+{
+	Point2D* ptAddToGray = new Point2D(col, row);
+
+	gray_start.push_back(ptAddToGray);
+	gray_target.push_back(ptAddToGray);
+}
+
 bool isBfsFoundPath(int row, int col, int goalPoint, int visitedFrom)
 {
+	bool stopBidirectional = false;
 	if (maze[row][col] == visitedFrom)
 	{
-		add both parent point and ptadd to bot parents and both grays
-			/*parent_forStartPath[row][col] = parentPoint;
-			parent_forTargetPath[row][col] = parentPoint;
-			gray_start.push_back(ptAddToGray);
-			gray_target.push_back(ptAddToGray);*/
+		saveIntersectionPoint(row, col);
+		stopBidirectional = true;
 	}
 
-	if ((maze[row][col] == goalPoint))	//found target
+	if (maze[row][col] == goalPoint)   //found target
+		stopBidirectional = true;
+
+
+	if (stopBidirectional)
 	{
 		bfs_start_started = false;
 		bfs_target_started = false;
 		isPathBeenDrawed = false;
-		return true;
 	}
-	
-	return false;
-}
 
-//void paintVisitedCellsAndAddToParent(int mazeRow, int mazeCol, Point2D*** parent, vector<Point2D*>& gray, Point2D* point)
-//{
-//	Point2D* ptAdd;
-//	maze[mazeRow][mazeCol] = GRAY;
-//	parent[mazeRow][mazeCol] = point;
-//
-//	ptAdd = new Point2D(mazeCol, mazeRow);	// the neighbour to be added to the visiting queue of bfs
-//	gray.push_back(ptAdd);
-//}
+	return stopBidirectional;
+}
 
 void storeCurrentPointInParrentArray(int row, int col, Point2D* parentPoint, Point2D* parentArray[][MSIZE], vector<Point2D*> &grayArray)
 {
 	Point2D* ptAddToGray = new Point2D(col, row);
 	parentArray[row][col] = parentPoint;
 	grayArray.push_back(ptAddToGray);
-	
-
 
 }
 
-void bfsFromStartPointIteration()
+void bfsFromStartPointIteration(Point2D* parentArray[][MSIZE], vector<Point2D*> &grayVector, int beginPoint, 
+	int beginPoint_visitedFrom, int goalPoint, int goalPoint_visitedFrom)
 {
-	Point2D* pt, *ptAdd;
+	Point2D* pt;
 	int mazeRow, mazeCol;
 
-	if (gray_start.empty())	//grey is the edges that didn't visited yet
+	if (grayVector.empty())	//grey is the edges that didn't visited yet
 	{
 		bfs_start_started = false;	//there is no path to the target
+		bfs_target_started = false;
 	}
 	else
 	{
-		pt = gray_start[0];	//this will be the parent
-		gray_start.erase(gray_start.begin());	//deque
+		pt = grayVector[0];	//this will be the parent
+		grayVector.erase(grayVector.begin());	//deque
 
 		mazeRow = pt->getY();
 		mazeCol = pt->getX();
 
 		//paint pt VISITED
-		if (isBfsFoundPath(mazeRow, mazeCol, TARGET, VISITED_FROM_TARGET))	//found target	
+		if (isBfsFoundPath(mazeRow, mazeCol, goalPoint, goalPoint_visitedFrom))	//found target	
 		{
-			storeCurrentPointInParrentArray(mazeRow, mazeCol, pt, parent_forStartPath, gray_start);
-			//parent_forStartPath[mazeRow][mazeCol] = pt;
-			//ptAdd = new Point2D(mazeCol, mazeRow);	// the neighbour to be added to the visiting queue of bfs
-			//gray_start.push_back(ptAdd);
-			//showBiderectionalPath(pt);
+			storeCurrentPointInParrentArray(mazeRow, mazeCol, pt, parentArray, grayVector);
 			return;
 		}
 		
 		else
 		{
-			if (maze[mazeRow][mazeCol] != START)
-				maze[mazeRow][mazeCol] = VISITED_FROM_START;	//y is i, x is j
+			if (maze[mazeRow][mazeCol] != beginPoint)
+				maze[mazeRow][mazeCol] = beginPoint_visitedFrom;	//y is i, x is j
 
 			//check down
 			mazeRow = pt->getY() + 1;
-			//isBfsFoundPath(mazeRow, mazeCol, TARGET, VISITED_FROM_TARGET);
-			if (isBfsFoundPath(mazeRow, mazeCol, TARGET, VISITED_FROM_TARGET))	//found target		
+			if (isBfsFoundPath(mazeRow, mazeCol, goalPoint, goalPoint_visitedFrom))	//found target		
 			{
-				storeCurrentPointInParrentArray(mazeRow, mazeCol, pt, parent_forStartPath, gray_start);
-
-				//parent_forStartPath[mazeRow][mazeCol] = pt;
-				//ptAdd = new Point2D(mazeCol, mazeRow);	// the neighbour to be added to the visiting queue of bfs
-				//gray_start.push_back(ptAdd);
-				//showBiderectionalPath(pt);
+				storeCurrentPointInParrentArray(mazeRow, mazeCol, pt, parentArray, grayVector);
 				return;
 			}
 
@@ -242,25 +276,14 @@ void bfsFromStartPointIteration()
 			if (maze[mazeRow][mazeCol] == SPACE)
 			{//add it to gray
 				maze[mazeRow][mazeCol] = GRAY;
-				//parent_forStartPath[mazeRow][mazeCol] = pt;
-
-				//ptAdd = new Point2D(mazeCol, mazeRow);	// the neighbour to be added to the visiting queue of bfs
-				//gray_start.push_back(ptAdd);
-				storeCurrentPointInParrentArray(mazeRow, mazeCol, pt, parent_forStartPath, gray_start);
-
+				storeCurrentPointInParrentArray(mazeRow, mazeCol, pt, parentArray, grayVector);
 			}
 
 			//check up
 			mazeRow = pt->getY() - 1;
-			//isBfsFoundPath(mazeRow, mazeCol, TARGET, VISITED_FROM_TARGET);
-			if (isBfsFoundPath(mazeRow, mazeCol, TARGET, VISITED_FROM_TARGET))	//found target		
+			if (isBfsFoundPath(mazeRow, mazeCol, goalPoint, goalPoint_visitedFrom))	//found target		
 			{
-				storeCurrentPointInParrentArray(mazeRow, mazeCol, pt, parent_forStartPath, gray_start);
-
-				//parent_forStartPath[mazeRow][mazeCol] = pt;
-				//ptAdd = new Point2D(mazeCol, mazeRow);	// the neighbour to be added to the visiting queue of bfs
-				//gray_start.push_back(ptAdd);
-				//showBiderectionalPath(pt);
+				storeCurrentPointInParrentArray(mazeRow, mazeCol, pt, parentArray, grayVector);
 				return;
 			}
 
@@ -268,26 +291,15 @@ void bfsFromStartPointIteration()
 			if (maze[mazeRow][mazeCol] == SPACE)
 			{//add it to gray
 				maze[mazeRow][mazeCol] = GRAY;
-				//parent_forStartPath[mazeRow][mazeCol] = pt;
-
-				//ptAdd = new Point2D(mazeCol, mazeRow);	// the neighbour to be added to the visiting queue of bfs
-				//gray_start.push_back(ptAdd);
-				storeCurrentPointInParrentArray(mazeRow, mazeCol, pt, parent_forStartPath, gray_start);
-
+				storeCurrentPointInParrentArray(mazeRow, mazeCol, pt, parentArray, grayVector);
 			}
 
 			//check right
 			mazeRow = pt->getY();
 			mazeCol = pt->getX() + 1;
-			//isBfsFoundPath(mazeRow, mazeCol, TARGET, VISITED_FROM_TARGET);
-			if (isBfsFoundPath(mazeRow, mazeCol, TARGET, VISITED_FROM_TARGET))	//found target		
+			if (isBfsFoundPath(mazeRow, mazeCol, goalPoint, goalPoint_visitedFrom))	//found target		
 			{
-				storeCurrentPointInParrentArray(mazeRow, mazeCol, pt, parent_forStartPath, gray_start);
-
-				//parent_forStartPath[mazeRow][mazeCol] = pt;
-				//ptAdd = new Point2D(mazeCol, mazeRow);	// the neighbour to be added to the visiting queue of bfs
-				//gray_start.push_back(ptAdd);
-				//showBiderectionalPath(pt);
+				storeCurrentPointInParrentArray(mazeRow, mazeCol, pt, parentArray, grayVector);
 				return;
 			}
 
@@ -295,25 +307,14 @@ void bfsFromStartPointIteration()
 			if (maze[mazeRow][mazeCol] == SPACE)
 			{//add it to gray
 				maze[mazeRow][mazeCol] = GRAY;
-				//parent_forStartPath[mazeRow][mazeCol] = pt;
-
-				//ptAdd = new Point2D(mazeCol, mazeRow);	// the neighbour to be added to the visiting queue of bfs
-				//gray_start.push_back(ptAdd);
-				storeCurrentPointInParrentArray(mazeRow, mazeCol, pt, parent_forStartPath, gray_start);
-
+				storeCurrentPointInParrentArray(mazeRow, mazeCol, pt, parentArray, grayVector);
 			}
 
 			//check left
 			mazeCol = pt->getX() - 1;
-			//isBfsFoundPath(mazeRow, mazeCol, TARGET, VISITED_FROM_TARGET);
-			if (isBfsFoundPath(mazeRow, mazeCol, TARGET, VISITED_FROM_TARGET))	//found target		
+			if (isBfsFoundPath(mazeRow, mazeCol, goalPoint, goalPoint_visitedFrom))	//found target		
 			{
-				storeCurrentPointInParrentArray(mazeRow, mazeCol, pt, parent_forStartPath, gray_start);
-
-				//parent_forStartPath[mazeRow][mazeCol] = pt;
-				//ptAdd = new Point2D(mazeCol, mazeRow);	// the neighbour to be added to the visiting queue of bfs
-				//gray_start.push_back(ptAdd);
-				//showBiderectionalPath(pt);
+				storeCurrentPointInParrentArray(mazeRow, mazeCol, pt, parentArray, grayVector);
 				return;
 			}
 
@@ -321,16 +322,8 @@ void bfsFromStartPointIteration()
 			if (maze[mazeRow][mazeCol] == SPACE)
 			{//add it to gray
 				maze[mazeRow][mazeCol] = GRAY;
-				//parent_forStartPath[mazeRow][mazeCol] = pt;
-
-				//ptAdd = new Point2D(mazeCol, mazeRow);	// the neighbour to be added to the visiting queue of bfs
-				//gray_start.push_back(ptAdd);
-				storeCurrentPointInParrentArray(mazeRow, mazeCol, pt, parent_forStartPath, gray_start);
-
+				storeCurrentPointInParrentArray(mazeRow, mazeCol, pt, parentArray, grayVector);
 			}
-
-			//if (!bfs_start_started)	//target was found
-			//	showBiderectionalPath(pt);
 		}
 	}
 }
@@ -595,7 +588,7 @@ void drawMaze()
 				glColor3d(0, 0.9, 0);	//green
 				break;
 			case VISITED_FROM_TARGET:
-				glColor3d(0.2, 0.9, 0);	//green
+				glColor3d(0.6, 0.9, 0);	//green
 				break;
 			case START:
 				glColor3d(0, 0, 1);	//blue
@@ -633,20 +626,17 @@ void display()
 
 void idle()
 {
-	if (bfs_start_started && bfs_target_started)
-	{
-		bfsFromStartPointIteration();
-		bfsFromTargetPointIteration();
-	}
-	else if (!isPathBeenDrawed)
+	if (bfs_start_started)
+		bfsFromStartPointIteration(parent_forStartPath, gray_start, START, VISITED_FROM_START, TARGET, VISITED_FROM_TARGET);
+	
+	if(bfs_target_started)
+		bfsFromStartPointIteration(parent_forTargetPath, gray_target, TARGET, VISITED_FROM_TARGET, START, VISITED_FROM_START);
+
+	if (!isPathBeenDrawed)
 	{
 		showBiderectionalPath();
 		isPathBeenDrawed = true;
 	}
-
-	
-	/*if (bfs_target_started)
-		bfsFromTargetPointIteration();*/
 
 	if (dfs_started)
 		dfsIteration();
@@ -661,11 +651,20 @@ void menu(int choice)
 	switch (choice)
 	{
 	case 1:
-		bfs_start_started = true;
-		bfs_target_started = true;
+		init();
 		break;
 	case 2:
+		cleanUpMaze();
+		break;
+	case 3:
+		bfs_start_started = true;
+		break;
+	case 4:
 		dfs_started = true;
+		break;
+	case 5:
+		bfs_start_started = true;
+		bfs_target_started = true;
 		break;
 
 	}
@@ -684,9 +683,12 @@ void main(int argc, char* argv[])
 	init();
 	//create menu
 	glutCreateMenu(menu);
-	glutAddMenuEntry("BFS", 1);
-	glutAddMenuEntry("DFS", 2);
-	glutAddMenuEntry("A*", 3);
+	glutAddMenuEntry("Scrumble the maze", 1);
+	glutAddMenuEntry("Clean up the maze", 2);
+	glutAddMenuEntry("BFS", 3);
+	glutAddMenuEntry("DFS", 4);
+	glutAddMenuEntry("Bidirectional_Search", 5);
+	glutAddMenuEntry("A*", 6);
 	glutAttachMenu(GLUT_RIGHT_BUTTON);
 
 	glutMainLoop();
