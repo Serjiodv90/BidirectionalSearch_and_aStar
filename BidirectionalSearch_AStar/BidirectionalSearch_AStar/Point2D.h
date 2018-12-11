@@ -11,6 +11,8 @@ public:
 	int getX();
 	int getY();
 
+	bool operator==(const Point2D& point) const;
+
 private:
 	int x;
 	int y;
