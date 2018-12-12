@@ -147,6 +147,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="ComparePointsByDist.h" />
     <ClInclude Include="GLUT.H" />
     <ClInclude Include="Point2D.h" />
   </ItemGroup>
@@ -154,6 +155,7 @@
     <Library Include="GLUT.LIB" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="ComparePointsByDist.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Point2D.cpp" />
   </ItemGroup>
