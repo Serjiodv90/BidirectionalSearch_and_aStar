@@ -22,6 +22,8 @@ public:
 
 	void calcDistanceFromTarget(Point2D* targetPoint);
 	void set_g(int levelOfPointInTree);
+	double get_g();
+	double get_h();
 	void set_f(Point2D* targetPoint, int levelOfPointInTree);
 	double get_f();
 

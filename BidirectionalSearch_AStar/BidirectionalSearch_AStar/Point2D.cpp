@@ -29,12 +29,22 @@ void Point2D::calcDistanceFromTarget(Point2D * targetPoint)
 {
 	double xPow = pow(this->x - targetPoint->x, 2);
 	double yPow = pow(this->y - targetPoint->y, 2);
-	this->h = sqrtf(xPow + yPow);
+	this->h = sqrtl(xPow + yPow);
 }
 
 void Point2D::set_g(int levelOfPointInTree)
 {
 	this->g = levelOfPointInTree;
+}
+
+double Point2D::get_g()
+{
+	return this->g;
+}
+
+double Point2D::get_h()
+{
+	return this->h;
 }
 
 void Point2D::set_f(Point2D* targetPoint, int levelOfPointInTree)
