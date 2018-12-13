@@ -166,26 +166,17 @@ void init()
 	glOrtho(-1, 1, -1, 1, -1, 1);
 }
 
-void showPathFromStart(Point2D* pt)
+
+
+void showPath(Point2D* pt, int beginPoint, int goalPoint, Point2D* parentArray[][MSIZE])
 {
 	Point2D* pt1 = pt;
 
-	while (pt1 != NULL && maze[pt1->getY()][pt1->getX()] != START)
+	while (pt1 != NULL && maze[pt1->getY()][pt1->getX()] != beginPoint)
 	{
-		if(maze[pt1->getY()][pt1->getX()] != TARGET)
+		if (maze[pt1->getY()][pt1->getX()] != goalPoint)
 			maze[pt1->getY()][pt1->getX()] = PATH;
-		pt1 = parent_forStartPath[pt1->getY()][pt1->getX()];
-	}
-}
-
-void showPathFromTarget(Point2D* pt)
-{
-	Point2D* pt1 = pt;
-
-	while (pt1 != NULL && maze[pt1->getY()][pt1->getX()] != TARGET )
-	{
-		maze[pt1->getY()][pt1->getX()] = PATH;
-		pt1 = parent_forTargetPath[pt1->getY()][pt1->getX()];
+		pt1 = parentArray[pt1->getY()][pt1->getX()];
 	}
 }
 
@@ -206,8 +197,8 @@ void showBiderectionalPath()
 		pt2 = new Point2D(lastVisitedPointFromTarget->getX(), lastVisitedPointFromTarget->getY());
 	}
 	
-	showPathFromStart(pt1);
-	showPathFromTarget(pt2);
+	showPath(pt1, START, TARGET, parent_forStartPath);
+	showPath(pt2, TARGET, START, parent_forTargetPath);
 }
 
 void saveIntersectionPoint(int row, int col)
@@ -382,7 +373,7 @@ void a_starIteration()
 			setPointAsGrayForAStar(mazeRow, mazeCol, pt);
 
 			if (!aStar_started)	//target was found
-				showPathFromStart(pt);
+				showPath(pt, START, TARGET, parent_forStartPath);
 		}
 	}
 }
@@ -459,7 +450,7 @@ void dfsIteration()
 				gray_start.push_back(ptAdd);
 			}
 			if (!dfs_started)	//target was found
-				showPathFromStart(pt);
+				showPath(pt, START, TARGET, parent_forStartPath);
 		}
 	}
 }
